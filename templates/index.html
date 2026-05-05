@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>University ID Portal</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="navbar">
+        <div class="nav-content">
+            <div class="logo">
+                <span class="logo-icon">🏛️</span> Global Tech University
+            </div>
+            <a href="/admin" class="nav-link">Admin Portal</a>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="card-container form-section">
+            <div class="section-header">
+                <h2>Digital ID Issuance</h2>
+                <p>Enter your Student PID to generate your secure digital ID card. Valid for 8 hours.</p>
+            </div>
+            
+            <div class="input-group">
+                <label for="pidInput">Student PID</label>
+                <input type="text" id="pidInput" placeholder="e.g., PID123" autocomplete="off">
+            </div>
+            
+            <button id="generateBtn" class="primary-btn" onclick="generateId()">Generate Digital ID</button>
+            
+            <div id="messageBox" class="hidden"></div>
+        </div>
+
+        <div class="card-container result-section">
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">💳</div>
+                <p>Your generated ID card will appear here</p>
+            </div>
+
+            <div id="resultContent" class="hidden">
+                <div class="status-banner">
+                    <span class="status-indicator active"></span>
+                    <span id="timerDisplay">Valid for: 08:00:00</span>
+                </div>
+                
+                <div class="id-card-wrapper">
+                    <img id="idPreview" src="" alt="Generated College ID">
+                </div>
+                
+                <div class="action-buttons">
+                    <a id="downloadBtn" href="" download="student_id.png" class="secondary-btn">Download ID</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

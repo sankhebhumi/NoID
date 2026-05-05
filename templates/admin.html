@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NO ID - Admin Panel</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="glass-panel">
+            <h1>Admin Panel</h1>
+            <p class="subtitle">Add New User</p>
+            
+            <form id="addUserForm" class="input-group">
+                <input type="text" id="pid" placeholder="PID (e.g. PID789)" required autocomplete="off">
+                <input type="text" id="name" placeholder="Full Name" required autocomplete="off">
+                <input type="text" id="department" placeholder="Department" required autocomplete="off">
+                <input type="text" id="year" placeholder="Year" required autocomplete="off">
+                <input type="text" id="program" placeholder="Program (e.g. B.Tech)" required autocomplete="off">
+                <input type="date" id="dob" required>
+                
+                <button type="submit" id="addBtn">Add User</button>
+            </form>
+            
+            <div id="messageBox" class="hidden"></div>
+            
+            <div style="margin-top: 20px;">
+                <a href="/" style="color: #4facfe; text-decoration: none;">&larr; Back to Generator</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('addBtn');
+            btn.disabled = true;
+            btn.innerText = 'Adding...';
+            
+            const payload = {
+                pid: document.getElementById('pid').value,
+                name: document.getElementById('name').value,
+                department: document.getElementById('department').value,
+                year: document.getElementById('year').value,
+                program: document.getElementById('program').value,
+                dob: document.getElementById('dob').value,
+            };
+            
+            try {
+                const response = await fetch('/api/add_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                const box = document.getElementById('messageBox');
+                box.classList.remove('hidden');
+                
+                if (!response.ok) {
+                    box.textContent = data.error || 'Failed to add user';
+                    box.className = 'error';
+                } else {
+                    box.textContent = data.message;
+                    box.className = 'success';
+                    document.getElementById('addUserForm').reset();
+                }
+            } catch (error) {
+                const box = document.getElementById('messageBox');
+                box.classList.remove('hidden');
+                box.textContent = 'Network error';
+                box.className = 'error';
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Add User';
+            }
+        });
+    </script>
+</body>
+</html>

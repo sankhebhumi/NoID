@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+env.bak/
+venv.bak/
+
+# Project specific
+noid_db.sqlite
+static/generated_ids/*
+!static/generated_ids/.gitkeep
