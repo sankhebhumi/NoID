@@ -2,7 +2,8 @@ import os
 import io
 import datetime
 from flask import Flask, request, jsonify, render_template, send_file
-import sqlite3
+from pymongo import MongoClient
+import pymongo.errors
 from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
@@ -11,10 +12,10 @@ app = Flask(__name__)
 os.makedirs('static/generated_ids', exist_ok=True)
 
 # Database Connection
-def get_db_connection():
-    conn = sqlite3.connect('noid_db.sqlite')
-    conn.row_factory = sqlite3.Row
-    return conn
+def get_db():
+    mongo_uri = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
+    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
+    return client['noid_db']
 
 def generate_id_image(user_data):
     # user_data: (pid, name, department, year, program, dob)
@@ -107,12 +108,12 @@ def generate_id():
         return jsonify({'error': 'PID is required'}), 400
         
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        db = get_db()
+        users_col = db['users']
+        access_log_col = db['access_log']
         
         # Check if user exists
-        cursor.execute("SELECT * FROM users WHERE pid = ?", (pid,))
-        user = cursor.fetchone()
+        user = users_col.find_one({'pid': pid})
         
         if not user:
             return jsonify({'error': 'Invalid User'}), 404
@@ -121,14 +122,12 @@ def generate_id():
         current_week = now.isocalendar()[1]
         
         # Check access log
-        cursor.execute("SELECT * FROM access_log WHERE pid = ?", (pid,))
-        log = cursor.fetchone()
+        log = access_log_col.find_one({'pid': pid})
         
         if log:
-            # SQLite stores datetime as string, we need to parse it
-            last_generated_str = log['last_generated_time']
-            access_count = log['access_count']
-            log_week = log['week_number']
+            last_generated_str = log.get('last_generated_time')
+            access_count = log.get('access_count', 0)
+            log_week = log.get('week_number')
             
             if last_generated_str:
                 last_generated = datetime.datetime.fromisoformat(last_generated_str)
@@ -151,23 +150,26 @@ def generate_id():
             else:
                 new_count = 1
                 
-            cursor.execute("""
-                UPDATE access_log 
-                SET access_count = ?, last_generated_time = ?, week_number = ?
-                WHERE pid = ?
-            """, (new_count, now.isoformat(), current_week, pid))
+            access_log_col.update_one(
+                {'pid': pid},
+                {'$set': {
+                    'access_count': new_count,
+                    'last_generated_time': now.isoformat(),
+                    'week_number': current_week
+                }}
+            )
             
         else:
             # First time generating
-            cursor.execute("""
-                INSERT INTO access_log (pid, access_count, last_generated_time, week_number)
-                VALUES (?, ?, ?, ?)
-            """, (pid, 1, now.isoformat(), current_week))
+            access_log_col.insert_one({
+                'pid': pid,
+                'access_count': 1,
+                'last_generated_time': now.isoformat(),
+                'week_number': current_week
+            })
             
-        conn.commit()
-        
         # Generate Image
-        user_tuple = (user['pid'], user['name'], user['department'], user['year'], user['program'], user['dob'])
+        user_tuple = (user['pid'], user['name'], user.get('department', ''), user.get('year', ''), user.get('program', ''), user.get('dob', ''))
         image_path = generate_id_image(user_tuple)
         
         return jsonify({
@@ -175,11 +177,11 @@ def generate_id():
             'image_url': f'/{image_path}?t={int(now.timestamp())}'
         })
         
+    except pymongo.errors.ServerSelectionTimeoutError:
+        return jsonify({'error': 'MongoDB connection failed. Is MongoDB running?'}), 500
     except Exception as e:
         print(e)
         return jsonify({'error': 'An internal error occurred.'}), 500
-    finally:
-        conn.close()
 
 @app.route('/api/add_user', methods=['POST'])
 def add_user():
@@ -191,23 +193,27 @@ def add_user():
             return jsonify({'error': f'{field} is required'}), 400
             
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        db = get_db()
+        users_col = db['users']
         
-        cursor.execute("""
-            INSERT INTO users (pid, name, department, year, program, dob)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (data['pid'], data['name'], data['department'], data['year'], data['program'], data['dob']))
+        if users_col.find_one({'pid': data['pid']}):
+            return jsonify({'error': 'PID already exists'}), 400
+            
+        users_col.insert_one({
+            'pid': data['pid'],
+            'name': data['name'],
+            'department': data['department'],
+            'year': data['year'],
+            'program': data['program'],
+            'dob': data['dob']
+        })
         
-        conn.commit()
         return jsonify({'message': 'User added successfully'})
-    except sqlite3.IntegrityError:
-        return jsonify({'error': 'PID already exists'}), 400
+    except pymongo.errors.ServerSelectionTimeoutError:
+        return jsonify({'error': 'MongoDB connection failed. Is MongoDB running?'}), 500
     except Exception as e:
         print(e)
         return jsonify({'error': 'Failed to add user'}), 500
-    finally:
-        conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)

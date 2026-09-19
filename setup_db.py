@@ -1,50 +1,38 @@
-import sqlite3
 import os
+from pymongo import MongoClient
+import pymongo.errors
 
 def setup_database():
-    print("Setting up SQLite database...")
+    print("Setting up MongoDB database...")
     
-    # Connect to the local SQLite file (it will be created if it doesn't exist)
-    conn = sqlite3.connect('noid_db.sqlite')
-    cursor = conn.cursor()
+    mongo_uri = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
+    try:
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
+        # Test connection
+        client.admin.command('ping')
+    except pymongo.errors.ServerSelectionTimeoutError:
+        print("Error: Could not connect to MongoDB server on localhost:27017.")
+        print("Please ensure MongoDB service or mongod is running locally, or set the MONGO_URI environment variable.")
+        return
+
+    db = client['noid_db']
     
-    # Create Users table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        pid TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        department TEXT,
-        year TEXT,
-        program TEXT,
-        dob TEXT
-    )
-    """)
+    users_col = db['users']
+    access_log_col = db['access_log']
     
-    # Create Access Log table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS access_log (
-        pid TEXT PRIMARY KEY,
-        access_count INTEGER DEFAULT 0,
-        last_generated_time TEXT,
-        week_number INTEGER,
-        FOREIGN KEY (pid) REFERENCES users(pid)
-    )
-    """)
+    # Create unique index on pid
+    users_col.create_index('pid', unique=True)
+    access_log_col.create_index('pid', unique=True)
     
-    # Insert Sample Data (using INSERT OR REPLACE for SQLite)
     sample_users = [
-        ('PID123', 'John Doe', 'Computer Science', '2024', 'B.Tech', '2000-01-15'),
-        ('PID456', 'Jane Smith', 'Information Tech', '2025', 'B.Tech', '2001-05-20')
+        {'pid': 'PID123', 'name': 'John Doe', 'department': 'Computer Science', 'year': '2024', 'program': 'B.Tech', 'dob': '2000-01-15'},
+        {'pid': 'PID456', 'name': 'Jane Smith', 'department': 'Information Tech', 'year': '2025', 'program': 'B.Tech', 'dob': '2001-05-20'}
     ]
     
-    cursor.executemany("""
-        INSERT OR REPLACE INTO users (pid, name, department, year, program, dob) 
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, sample_users)
-    
-    conn.commit()
-    conn.close()
-    print("Database setup completed successfully! The local 'noid_db.sqlite' file has been created.")
+    for u in sample_users:
+        users_col.update_one({'pid': u['pid']}, {'$set': u}, upsert=True)
+        
+    print("Database setup completed successfully! MongoDB 'noid_db' collections and sample data created.")
 
 if __name__ == '__main__':
     setup_database()
